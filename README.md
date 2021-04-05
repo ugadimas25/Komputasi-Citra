@@ -1,76 +1,28 @@
 # Komputasi-Citra
 Script untuk melakukan komputasi citra dengan menggunakan data elevasi
 ```javascript
-// TIME SERIES
 
-// Buat polygon (geometry) sebagai batas untuk analisis time series.
-// Buat koleksi citra S-2 (Sentinel 2) untuk periode 2016-2019.
-var S2 = ee.ImageCollection('COPERNICUS/S2')
+// 03 KOMPUTASI CITRA
 
-// filter tanggal mulai dan berakhir
-.filterDate('2016-01-01', '2019-01-01')
+// Cari 'dsm' (model permukaan digital) dan temukan:
+var dsm = ee.Image('JAXA/ALOS/AW3D30_V1_1');
 
-// filter sesuai batas yang ditentukan
-.filterBounds(geometry);
+// Dapatkan ketinggian dalam pita saluran meter.
+var elev = dsm.select('AVE');
 
-// Function untuk mask cloud dari built-in informasi kualitas saluran
-// dari tutupan awan
-var maskcloud1 = function(image) {
-    var QA60 = image.select(['QA60']);
-    return image.updateMask(QA60.lt(1));
-};
+// Perhitungan ini ('junk') hanyalah contoh matematika dengan citra.
+var junk = elev.add(3);
+Map.addLayer(junk, {min: 0, max: 500}, 'junk');
 
-// Fungsi untuk menghitung dan menambahkan saluran NDVI
-var addNDVI = function(image) {
-    return image.addBands(image.normalizedDifference(['B8', 'B4']));
-};
+// Operasi relasional pada citra. Temukan semua tempat
+// ketinggian lebih dari 500 meter. Citra biner.
+var elevGt500 = elev.gt(500);
+// Ini adalah trik yang berguna. Setel semua nol piksel menjadi 'no data' (masked).
+elevGt500 = elevGt500.updateMask(elevGt500);
+Map.addLayer(elevGt500, {palette: ['yellow']}, 'elevGt500');
 
-// Menambahkan saluran NDVI ke koleksi citra
-var S2 = S2.map(addNDVI);
-// Ekstrak saluarn NDVI dan membuat citra komposit median NDVI
-var NDVI = S2.select(['nd']);
-var NDVImed = NDVI.median(); //Hanya mengubah nama variabel ini ;)
-
-// Membuat palettes untuk menampilkan NDVI
-var ndvi_pal = ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b',
-    '#a6d96a'
-];
-
-// Membuat time series chart.
-var plotNDVI = ui.Chart.image.seriesByRegion(S2, geometry, ee.Reducer.mean(),
-        'nd', 500, 'system:time_start', 'system:index')
-    .setChartType('LineChart').setOptions({
-        title: 'NDVI short-term time series',
-        hAxis: { title: 'Date' },
-        vAxis: { title: 'NDVI' }
-    });
-
-// Display.
-print(plotNDVI);
-
-// Display hasil NDVI ke peta
-Map.centerObject(geometry, 12);
-Map.addLayer(NDVImed.clip(geometry), { min: -0.5, max: 0.9, palette: ndvi_pal }, 'NDVI');
-
-// Parameter visualisasi.
-var args = {
-    crs: 'EPSG:3857', // Maps Mercator
-    dimensions: '300',
-    region: geometry,
-    min: -1,
-    max: 1,
-    palette: ndvi_pal,
-    framesPerSecond: 4,
-};
-
-// Buat thumbnail video dan tambahkan ke peta.
-var thumb = ui.Thumbnail({
-    // Menentukan koleksi "image", membuat animasi urutan "images".
-    image: NDVI,
-    params: args,
-    style: {
-        position: 'bottom-right',
-        width: '320px'
-    }
-});
-Map.add(thumb);
+// Gunakan metode statis untuk perhitungan yang lebih kompleks.
+var terrain = ee.Terrain.products(elev);
+// Cetak untuk mengetahui band apa yang ada di sana.
+print('terrain', terrain);
+Map.addLayer(terrain, {bands: ['hillshade']}, 'hillshade');
